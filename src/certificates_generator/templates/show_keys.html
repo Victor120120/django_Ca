@@ -1,0 +1,64 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<div class="app-certificates module">
+    <h1>Llaves generadas</h1>
+
+
+    <label><strong>Guarde estas llaves en un lugar seguro, una de ellas no podrá ser consultada más adelante en esta
+        vista.</strong></label>
+    <p style="color: red;"><strong>Nota:</strong> Esta llave privada no volverá a mostrarse.</p>
+
+    <div class="form-row">
+        <label><strong>Llave privada del servidor:</strong></label>
+        <div style="padding: 10px;">
+            <label>
+                <textarea readonly
+                          style="width: 100%; height: 200px; font-family: monospace;">{{ private_key }}</textarea>
+            </label>
+            <div style="margin-top: 10px">
+                <a download="server_private.key"
+                   href="data:application/x-pem-file;charset=utf-8,{{ private_key|urlencode }}" class="button default">Descargar
+                    .key</a>
+            </div>
+        </div>
+    </div>
+
+    <br>
+
+    <div class="form-row">
+        <label><strong>Llave pública del servidor:</strong></label>
+        <div style="padding: 10px;">
+            <label>
+                <textarea readonly
+                          style="width: 100%; height: 200px; font-family: monospace;">{{ public_key }}</textarea>
+            </label>
+            <div style="margin-top: 10px">
+                <a download="server_public.pub"
+                   href="data:application/x-pem-file;charset=utf-8,{{ public_key|urlencode }}" class="button default">Descargar
+                    .pub</a>
+            </div>
+        </div>
+    </div>
+
+    <br>
+
+    <div class="form-row">
+        <label><strong>Certificado público:</strong></label>
+        <div style="padding: 10px;">
+            <label>
+                <textarea readonly
+                          style="width: 100%; height: 200px; font-family: monospace;">{{ public_certificate }}</textarea>
+            </label>
+            <div style="margin-top: 10px">
+                <a download="public_cert.crt"
+                   href="data:application/x-pem-file;charset=utf-8,{{ public_certificate|urlencode }}"
+                   class="button default">Descargar .crt</a>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+{% endblock %}

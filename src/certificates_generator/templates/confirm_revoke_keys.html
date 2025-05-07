@@ -1,0 +1,10 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+  <p>Esta acción revocará las llaves del certificado: <strong>{{ object.name }}</strong>.</p>
+  <form method="post">{% csrf_token %}
+    <input type="submit" value="Sí, continuar" class="default">
+    <a href="{{ request.META.HTTP_REFERER|default:'/' }}">Cancelar</a>
+  </form>
+{% endblock %}
