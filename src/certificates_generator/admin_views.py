@@ -1,17 +1,22 @@
-from django.contrib import messages
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
-from django.template.response import TemplateResponse
-from django.urls import path, reverse
-from datetime import datetime
-import requests
+
+from datetime import timedelta
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.bindings._rust import ObjectIdentifier
+from django.shortcuts import redirect
+from django.urls import reverse
+
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from django.conf import settings
+from django.utils.timezone import now
+from django_ca.constants import ReasonFlags
 
-from .models import Certificate
+from django_ca.models import Certificate
+from django_ca.models import CertificateAuthority
+
 from .utils import CertificateUtils
 
 
@@ -21,9 +26,6 @@ class CertificateAdminMixin:
     # Override save_model method
 
     def save_model(self, request, save_model, form, change):
-        api_url = settings.DJANGO_CA_URL_PATH
-        user = settings.DJANGO_CA_USER
-        password = settings.DJANGO_CA_USER_PASSWORD
         serial_DEV = settings.DJANGO_CA_SERIAL_DEVELOPMENT
         serial_PROD = settings.DJANGO_CA_SERIAL_PRODUCTION
 
@@ -40,9 +42,9 @@ class CertificateAdminMixin:
 
         subject = self.utils.build_subject(save_model)
 
-        response_data = self.sign_certificate(csr_pem, subject, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD), api_url, user, password)
-        slug = response_data["slug"]
-        response_data = self.utils.get_certificate(slug, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD), api_url, user, password)
+        response_data = self.sign_certificate_direct(csr_pem, subject, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD))
+        #slug = response_data["slug"]
+        #response_data = self.utils.get_certificate(slug, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD), api_url, user, password)
         certificate_pem = response_data["pem"].encode()
 
         save_model.private_key = private_key.private_bytes(
@@ -109,24 +111,60 @@ class CertificateAdminMixin:
         csr = csr_builder.sign(private_key, hashes.SHA256())
         return csr
 
-    def sign_certificate(self, csr_pem, subject, serial, api_url, user, password):
-        url = f"{api_url}ca/{serial}/sign/"
-        payload = {
-            "csr": csr_pem.decode(),
-            "subject": subject,
-            "profile": "webserver"
-        }
-
-        response = requests.post(
-            url,
-            auth=(user, password),
-            json=payload,
-            headers={'Content-Type': 'application/json'}
+    def sign_certificate_direct(self, csr_pem, subject, serial):
+        try:
+            csr = self.load_csr(csr_pem)
+            ca = CertificateAuthority.objects.get(serial=serial)
+            key_opts = ca.key_backend.get_use_private_key_options(ca, ca.key_backend_options)
+            name = x509.Name([
+                x509.NameAttribute(ObjectIdentifier(entry["oid"]), entry["value"])
+                for entry in subject
+            ])
+            cert = ca.sign(
+                key_backend_options=key_opts,
+                csr=csr,
+                subject=name,
+                not_after=None,
+                extensions=None
+            )
+            valid_from = now()
+            valid_until = valid_from + timedelta(days=365)
+            cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM).decode()
+            serial_formatted = self.format_serial(cert.serial_number)
+            Certificate.objects.create(
+                ca=ca,
+                serial=serial_formatted,
+                profile="webserver",
+                not_before=valid_from,
+                not_after=valid_until,
+                pub=cert_pem,
+                cn=cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value
+            )
+            return {
+                "pem": cert.public_bytes(encoding=serialization.Encoding.PEM).decode(),
+                "serial": cert.serial_number,
+                "cert_obj": cert,
+            }
+        except CertificateAuthority.DoesNotExist:
+            raise Exception(f"No existe la CA {serial}")
+        except Exception as e:
+            print(f"Error getting CA: {e}")
+            raise
+    """
+    def oscp_extension(self, serial):
+        ocsp_url = f"http://{settings.CA_DEFAULT_HOSTNAME}/ocsp/"
+        ocsp_extension = x509.Extension(
+            oid=ExtensionOID.AUTHORITY_INFORMATION_ACCESS,
+            critical=False,
+            value=AuthorityInformationAccess([
+                AccessDescription(
+                    AuthorityInformationAccessOID.OCSP,
+                    UniformResourceIdentifier(ocsp_url)
+                )
+            ])
         )
-
-        response.raise_for_status()
-        return response.json()
-
+        return ocsp_extension
+    """
 
     # Override Delete methods
 
@@ -140,37 +178,119 @@ class CertificateAdminMixin:
         super().delete_queryset(request, queryset)
 
     def revoke_certificate(self, obj):
-        api_url = settings.DJANGO_CA_URL_PATH
-        user = settings.DJANGO_CA_USER
-        password = settings.DJANGO_CA_USER_PASSWORD
-        serial_DEV = settings.DJANGO_CA_SERIAL_DEVELOPMENT
-        serial_PROD = settings.DJANGO_CA_SERIAL_PRODUCTION
         try:
-            serial = self.utils.get_serial_from_pem(obj.public_certificate)
-
-            url = f"{api_url}ca/{serial}/revoke/{serial_DEV}/"
-            if obj.certifying_authority == 0:
-                url = f"{api_url}ca/{serial_PROD}/revoke/{serial}/"
-            compromised_time = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
-            data = {
-                "compromised": compromised_time,
-                "reason": "removeFromCRL"
-            }
-            response = requests.post(
-                url,
-                auth=(user, password),
-                headers={
-                    "Content-Type": "application/json"
-                },
-                json=data
-            )
-            state = response.status_code
-            if state == 200 or state == 400:
-                obj.state = 1
-                obj.save()
-            else:
-                raise Exception(f"Error al revocar el certificado: {response.text}")
+            serial = self.get_serial_from_pem(obj.public_certificate)
+            cert = Certificate.objects.get(serial=serial)
+            if cert is None:
+                return True
+            cert.revoke(reason=ReasonFlags.remove_from_crl, compromised=now())
+            obj.state = 1
+            obj.save()
             return True
         except Exception as e:
-            print(f"Error al revocar el certificado: {e}")
+            print(f"Error revoking certificate: {e}")
             raise
+
+    def get_serial_from_pem(self, pem_data: str) -> str:
+        try:
+            cert = x509.load_pem_x509_certificate(pem_data.encode('utf-8'), default_backend())
+            serial_int = cert.serial_number
+            serial_hex = f"{serial_int:x}".upper()
+            if len(serial_hex) % 2 != 0:
+                serial_hex = serial_hex
+            return serial_hex
+        except Exception as e:
+            print("Error al procesar el certificado:", e)
+            raise
+
+    def load_csr(self, csr_pem: bytes | str) -> x509.CertificateSigningRequest:
+        if isinstance(csr_pem, str):
+            csr_pem = csr_pem.encode("utf-8")
+        return x509.load_pem_x509_csr(csr_pem, backend=default_backend())
+
+    def format_serial(self, serial_number: int) -> str:
+        hex_str = f"{serial_number:X}"
+
+        if len(hex_str) % 2 != 0:
+            hex_str = "0" + hex_str
+
+        return hex_str
+
+    # ValidateOcsp method
+    """
+    def validate_ocsp_details(self, certificate):
+
+        certificate_str = re.sub(r'\\n', '\n', certificate.public_certificate)
+        cert = x509.load_pem_x509_certificate(certificate_str.encode(), default_backend())
+        try:
+            if certificate.certifying_authority == 0:
+                serial = settings.DJANGO_CA_SERIAL_PRODUCTION
+            else:
+                serial = settings.DJANGO_CA_SERIAL_DEVELOPMENT
+            issuer = self.get_issuer_certificate(serial)
+            ocsp_ulr = self.get_certificate_ocsp_url(cert)
+            #ocsp_ulr = ocsp_ulr + self.get_serial_from_pem(certificate_str) +"/cert/"
+            if not ocsp_ulr:
+                print(f"Error al obtener la url de OCSP")
+                return False
+            builder = OCSPRequestBuilder()
+            builder = builder.add_certificate(cert, issuer, hashes.SHA1())
+            ocsp_request = builder.build()
+            headers = {
+                "Content-Type": "application/ocsp-request",
+            }
+            response = requests.post(ocsp_ulr, data=ocsp_request.public_bytes(serialization.Encoding.DER),
+                                     headers=headers)
+            if response.status_code != 200:
+                print(f"Respuesta OCSP no válida (código {response.status_code})")
+                return False
+            ocsp_response = x509.ocsp.load_der_ocsp_response(response.content)
+
+            if ocsp_response.response_status != OCSPResponseStatus.SUCCESSFUL:
+                print(f"Respuesta OCSP no válida (código {response.status_code})")
+                return False
+            status = ocsp_response.certificate_status
+            if status == x509.ocsp.OCSPCertStatus.GOOD:
+                print(f"Certificate valid")
+                return True
+            elif status == x509.ocsp.OCSPCertStatus.REVOKED:
+                print(f"Certificate revoked")
+                return False
+            elif status == x509.ocsp.OCSPCertStatus.UNKNOWN:
+                print(f"Certificate unknown")
+                return False
+
+        except Exception as e:
+            print(f"Error al validar el certificado: {e}")
+            raise
+        
+
+    def get_issuer_certificate(self, serial) -> x509.Certificate:
+        try:
+            ca = CertificateAuthority.objects.get(serial=serial)
+            pem_data = ca.pub.pem
+            issuer_cert = x509.load_pem_x509_certificate(pem_data.encode('utf-8'), default_backend())
+            return issuer_cert
+        except Exception as e:
+            print(f"Error al obtener el certificado de la CA: {e}")
+            raise
+
+    def get_certificate_ocsp_url(self, cert):
+        try:
+            aia = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.AUTHORITY_INFORMATION_ACCESS).value
+
+            ocsp_url = None
+            for access_desc in aia:
+                if access_desc.access_method == x509.AuthorityInformationAccessOID.OCSP:
+                    ocsp_url = access_desc.access_location.value
+                    break
+
+            if ocsp_url:
+                return ocsp_url
+            else:
+                print(f"No OCSP URL found")
+                return None
+        except Exception as e:
+            print(f"Error al obtener el certificado de la CA: {e}")
+            raise
+    """

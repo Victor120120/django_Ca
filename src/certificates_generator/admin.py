@@ -40,9 +40,9 @@ class CertificateAdmin(CertificateAdminMixin, admin.ModelAdmin):
     def revoke_certificate_admin(self, obj):
         return format_html(
             '<a class="button" href="{}">Revocar certificado</a>&nbsp;'
-            '<a class="button" href="{}">Regenerar llaves</a>',
+            '<a class="button" href="{}">Regenerar llaves</a>&nbsp',
             f'/admin/certificates_generator/certificate/{obj.pk}/revoke_certificate/',
-            f'/admin/certificates_generator/certificate/{obj.pk}/regenerate_keys/'
+            f'/admin/certificates_generator/certificate/{obj.pk}/regenerate_keys/',
         )
     revoke_certificate_admin.short_description = "Acciones"
     revoke_certificate_admin.allow_tags = True

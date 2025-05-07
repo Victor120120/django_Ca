@@ -91,7 +91,7 @@ DATABASES = {
         'NAME': os.getenv('POSTGRES_DB', 'DBdjango_Ca'),
         'USER': os.getenv('POSTGRES_USER', 'django_ca'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD', '123456'),
-        'HOST': os.getenv('POSTGRES_HOST', 'db'),
+        'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
         #'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
         'PORT': os.getenv('POSTGRES_PORT', '5432'),
     }
@@ -173,7 +173,7 @@ CA_OCSP_URLS = {
     }
 }
 
-CA_DEFAULT_HOSTNAME = os.getenv('CA_DEFAULT_HOSTNAME', "127.0.0.1")
+CA_DEFAULT_HOSTNAME = os.getenv('CA_DEFAULT_HOSTNAME', "127.0.0.1:8003")
 
 
 
@@ -184,10 +184,10 @@ CA_PATH = os.environ.get('CA_PATH', os.path.join(BASE_DIR, 'certificates/ca'))
 DJANGO_CA_SERIAL_DEVELOPMENT = os.getenv('DJANGO_CA_SERIAL_DEVELOPMENT', '6590EDECE0F7E8000EAFD59CDB234438FA6B5129')
 DJANGO_CA_SERIAL_PRODUCTION = os.getenv('DJANGO_CA_SERIAL_PRODUCTION', '2D57891D39452EE68924949D3807F0BF6DDF3A8B')
 
-DJANGO_CA_URL_PATH = os.getenv('DJANGO_CA_URL_PATH', 'http://127.0.0.1:8003/api/')
+DJANGO_CA_URL_PATH = os.getenv('DJANGO_CA_URL_PATH', 'http://127.0.0.1:8000/api/')
 DJANGO_CA_USER = os.getenv('CA_USER', 'victor')
 DJANGO_CA_USER_PASSWORD = os.getenv('CA_USER_PASSWORD', '123')
-
+"""
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -205,3 +205,4 @@ LOGGING = {
         },
     },
 }
+"""

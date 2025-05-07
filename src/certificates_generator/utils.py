@@ -1,6 +1,9 @@
 import requests
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from django.contrib.admin import filters
+from django_ca.api.utils import get_certificate_authority
+from django_ca.models import CertificateOrder, Certificate
 
 
 class CertificateUtils:
@@ -36,7 +39,6 @@ class CertificateUtils:
         except Exception as e:
             print(f"Error al obtener el certificado: {e}")
             raise
-
     def get_serial_from_pem(self, pem_data: str) -> str:
         try:
             cert = x509.load_pem_x509_certificate(pem_data.encode('utf-8'), default_backend())
