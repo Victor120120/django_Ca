@@ -12,11 +12,11 @@ services:
       - static_volume:/app/staticfiles
       - ca_data:/shared/ca
     ports:
-      - "8001:8000"
+      - "${HOST_PORT_WEB1}:${CONTAINER_PORT}"
     env_file:
       - .env
     environment:
-      - DJANGO_CA_URL_PATH=http://web2:8000/api/
+      - DJANGO_CA_URL_PATH=http://web2:${CONTAINER_PORT}/api/
       - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1
     depends_on:
       - db
@@ -30,12 +30,12 @@ services:
       - static_volume:/app/staticfiles
       - ca_data:/shared/ca
     ports:
-      - "8002:8000"
+      - "${HOST_PORT_WEB2}:${CONTAINER_PORT}"
     env_file:
       - .env
     environment:
-      - DJANGO_CA_URL_PATH=http://web3:8000/api/
-      - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1
+      - DJANGO_CA_URL_PATH=http://web3:${CONTAINER_PORT}/api/
+      - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1,
     depends_on:
       - db
 
@@ -49,11 +49,11 @@ services:
       - static_volume:/app/staticfiles
       - ca_data:/shared/ca
     ports:
-      - "8003:8000"
+      - "${HOST_PORT_WEB3}:${CONTAINER_PORT}"
     env_file:
       - .env
     environment:
-      - DJANGO_CA_URL_PATH=http://web1:8000/api/
+      - DJANGO_CA_URL_PATH=http://web1:${CONTAINER_PORT}/api/
       - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1
     depends_on:
       - db
@@ -62,7 +62,7 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "8000:80"
+      - "${CONTAINER_PORT}:80"
     depends_on:
       - web1
       - web2

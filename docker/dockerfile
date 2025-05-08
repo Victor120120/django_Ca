@@ -23,7 +23,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Expón el puerto (usualmente 8000 para Django)
-EXPOSE 8000
+EXPOSE 7000
 
 # Comando por defecto
-CMD ["gunicorn", "django_ca_core.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "300"]
+CMD ["gunicorn", "django_ca_core.wsgi:application", "--bind", "0.0.0.0:7000", "--timeout", "300"]
