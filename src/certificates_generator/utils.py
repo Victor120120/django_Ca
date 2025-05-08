@@ -4,14 +4,16 @@ from cryptography.hazmat.backends import default_backend
 from django.contrib.admin import filters
 from django_ca.api.utils import get_certificate_authority
 from django_ca.models import CertificateOrder, Certificate
+from django.conf import settings
 
 
 class CertificateUtils:
 
-    def get_serial(self, intermediate_type, serial_DEV, serial_PROD):
-        serial = serial_DEV
+    def get_serial(self, intermediate_type):
+
+        serial = settings.DJANGO_CA_SERIAL_DEVELOPMENT
         if intermediate_type == 0:
-            serial = serial_PROD
+            serial = settings.DJANGO_CA_SERIAL_PRODUCTION
         return serial
 
     def get_certificate(self, slug, serial, api_url, user, password):
@@ -24,18 +26,22 @@ class CertificateUtils:
                     "Content-Type": "application/json"
                 }
             )
-            response.raise_for_status()
-            cert_serial = response.json()["serial"]
-            url = f"{api_url}ca/{serial}/certs/{cert_serial}/"
-            response = requests.get(
-                url,
-                auth=(user, password),
-                headers={
-                    "Content-Type": "application/json"
-                }
-            )
-            response.raise_for_status()
-            return response.json()
+            if response.status_code == 200:
+                cert_serial = response.json()["serial"]
+                url = f"{api_url}ca/{serial}/certs/{cert_serial}/"
+                response = requests.get(
+                    url,
+                    auth=(user, password),
+                    headers={
+                        "Content-Type": "application/json"
+                    }
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return None
+            else:
+                return None
         except Exception as e:
             print(f"Error al obtener el certificado: {e}")
             raise

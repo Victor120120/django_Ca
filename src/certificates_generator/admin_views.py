@@ -1,8 +1,10 @@
-
+import re
 from datetime import timedelta
 
+import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.bindings._rust import ObjectIdentifier
+from cryptography.x509.ocsp import OCSPRequestBuilder, OCSPResponseStatus
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -13,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from django.conf import settings
 from django.utils.timezone import now
 from django_ca.constants import ReasonFlags
+from django.core.exceptions import ValidationError
 
 from django_ca.models import Certificate
 from django_ca.models import CertificateAuthority
@@ -26,6 +29,9 @@ class CertificateAdminMixin:
     # Override save_model method
 
     def save_model(self, request, save_model, form, change):
+        api_url = settings.DJANGO_CA_URL_PATH
+        user = settings.DJANGO_CA_USER
+        password = settings.DJANGO_CA_USER_PASSWORD
         serial_DEV = settings.DJANGO_CA_SERIAL_DEVELOPMENT
         serial_PROD = settings.DJANGO_CA_SERIAL_PRODUCTION
 
@@ -42,9 +48,12 @@ class CertificateAdminMixin:
 
         subject = self.utils.build_subject(save_model)
 
-        response_data = self.sign_certificate_direct(csr_pem, subject, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD))
-        #slug = response_data["slug"]
-        #response_data = self.utils.get_certificate(slug, self.utils.get_serial(save_model.certifying_authority,serial_DEV,serial_PROD), api_url, user, password)
+        response_data = self.sign_certificate(csr_pem, subject, self.utils.get_serial(save_model.certifying_authority),api_url,user,password)
+        if response_data is None:
+            raise ValidationError("La solicitud HTTP para firmar el certificado falló. Intenta nuevamente.")
+        response_data = self.utils.get_certificate(response_data["slug"], self.utils.get_serial(save_model.certifying_authority), api_url, user, password)
+        if response_data is None:
+            raise ValidationError("La solicitud HTTP para firmar el certificado falló. Intenta nuevamente.")
         certificate_pem = response_data["pem"].encode()
 
         save_model.private_key = private_key.private_bytes(
@@ -111,45 +120,24 @@ class CertificateAdminMixin:
         csr = csr_builder.sign(private_key, hashes.SHA256())
         return csr
 
-    def sign_certificate_direct(self, csr_pem, subject, serial):
-        try:
-            csr = self.load_csr(csr_pem)
-            ca = CertificateAuthority.objects.get(serial=serial)
-            key_opts = ca.key_backend.get_use_private_key_options(ca, ca.key_backend_options)
-            name = x509.Name([
-                x509.NameAttribute(ObjectIdentifier(entry["oid"]), entry["value"])
-                for entry in subject
-            ])
-            cert = ca.sign(
-                key_backend_options=key_opts,
-                csr=csr,
-                subject=name,
-                not_after=None,
-                extensions=None
-            )
-            valid_from = now()
-            valid_until = valid_from + timedelta(days=365)
-            cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM).decode()
-            serial_formatted = self.format_serial(cert.serial_number)
-            Certificate.objects.create(
-                ca=ca,
-                serial=serial_formatted,
-                profile="webserver",
-                not_before=valid_from,
-                not_after=valid_until,
-                pub=cert_pem,
-                cn=cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value
-            )
-            return {
-                "pem": cert.public_bytes(encoding=serialization.Encoding.PEM).decode(),
-                "serial": cert.serial_number,
-                "cert_obj": cert,
-            }
-        except CertificateAuthority.DoesNotExist:
-            raise Exception(f"No existe la CA {serial}")
-        except Exception as e:
-            print(f"Error getting CA: {e}")
-            raise
+    def sign_certificate(self, csr_pem, subject, serial, api_url, user, password):
+        url = f"{api_url}ca/{serial}/sign/"
+        payload = {
+            "csr": csr_pem.decode(),
+            "subject": subject,
+            "profile": "webserver"
+        }
+
+        response = requests.post(
+            url,
+            auth=(user, password),
+            json=payload,
+            headers={'Content-Type': 'application/json'}
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return None
     """
     def oscp_extension(self, serial):
         ocsp_url = f"http://{settings.CA_DEFAULT_HOSTNAME}/ocsp/"
@@ -217,7 +205,6 @@ class CertificateAdminMixin:
         return hex_str
 
     # ValidateOcsp method
-    """
     def validate_ocsp_details(self, certificate):
 
         certificate_str = re.sub(r'\\n', '\n', certificate.public_certificate)
@@ -293,4 +280,3 @@ class CertificateAdminMixin:
         except Exception as e:
             print(f"Error al obtener el certificado de la CA: {e}")
             raise
-    """

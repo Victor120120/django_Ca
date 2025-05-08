@@ -40,9 +40,11 @@ class CertificateAdmin(CertificateAdminMixin, admin.ModelAdmin):
     def revoke_certificate_admin(self, obj):
         return format_html(
             '<a class="button" href="{}">Revocar certificado</a>&nbsp;'
-            '<a class="button" href="{}">Regenerar llaves</a>&nbsp',
+            '<a class="button" href="{}">Regenerar llaves</a>&nbsp'
+            '<a class="button" href="{}">Verificar OSCP</a>',
             f'/admin/certificates_generator/certificate/{obj.pk}/revoke_certificate/',
             f'/admin/certificates_generator/certificate/{obj.pk}/regenerate_keys/',
+            f'/admin/certificates_generator/certificate/{obj.pk}/verify_oscp/',
         )
     revoke_certificate_admin.short_description = "Acciones"
     revoke_certificate_admin.allow_tags = True
@@ -57,6 +59,8 @@ class CertificateAdmin(CertificateAdminMixin, admin.ModelAdmin):
                  name='revoke_certificate'),
             path('<path:object_id>/regenerate_keys/', self.admin_site.admin_view(self.regenerate_keys),
                  name='regenerate_keys'),
+            path('<path:object_id>/verify_oscp/', self.admin_site.admin_view(self.verify_oscp),
+                 name='verify_oscp'),
         ]
         return custom_urls + urls
 
@@ -118,3 +122,15 @@ class CertificateAdmin(CertificateAdminMixin, admin.ModelAdmin):
                 return redirect(reverse('admin:certificates_generator_certificate_changelist'))
 
         return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def verify_oscp(self, request, object_id):
+        obj = get_object_or_404(Certificate, pk=object_id)
+        try:
+            is_valid = self.validate_ocsp_details(obj)
+            if not is_valid:
+                messages.error(request, f"El certificado de {obj.name} no es válido.")
+                return redirect(reverse('admin:view_keys', args=[obj.pk]))
+            messages.success(request, f"El certificado de {obj.name} fue verificado correctamente.")
+        except Exception as e:
+            messages.error(request, f"Error al verificar el certificado: {str(e)}")
+        return redirect('/admin/certificates_generator/certificate/')
