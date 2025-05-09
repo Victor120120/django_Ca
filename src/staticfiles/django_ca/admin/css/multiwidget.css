@@ -1,0 +1,23 @@
+p.django-ca-multiwidget {
+    padding: 0 !important;
+}
+.django-ca-multiwidget textarea,
+.django-ca-multiwidget input
+{
+    display: block;  /* or display is completely broken for some reason */
+}
+.django-ca-multiwidget label {
+    float: initial;
+    width: 220px;
+}
+
+.django-ca-multiwidget select + .help,
+.django-ca-multiwidget textarea + .help,
+.django-ca-multiwidget input[type=text] + .help
+{
+    padding-bottom: 3px;  /* Add a little space below the help text for separation */
+}
+
+.django-ca-multiwidget select {
+    display: block;  /* So that help is displayed in the next line */
+}

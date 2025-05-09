@@ -1,0 +1,64 @@
+/*
+This file is part of django-ca (https://github.com/mathiasertl/django-ca).
+
+django-ca is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+django-ca is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with django-ca.  If not,
+see <http://www.gnu.org/licenses/>.
+*/
+
+/**
+ * Viewing the CSR and PEM as code. 
+ */
+fieldset.as-code .field-csr div.readonly,
+fieldset.as-code .field-csr_pem div.readonly,
+fieldset.as-code .field-pub div.readonly,
+fieldset.as-code .field-pub_pem div.readonly,
+.shell
+{
+    white-space: pre;
+    white-space: pre-wrap;
+    font-family: monospace;
+    background: #faf8f0;
+    border: 1px solid #bebab0;
+    padding: 10px 15px !important;
+    display: table;
+    margin-top: 3px;
+}
+
+@media (min-width: 1025px) {
+    fieldset .field-revoked, fieldset .field-revoked_date {
+        min-width: 320px;
+    }
+}
+
+
+body.app-django_ca .django-ca-extension .django-ca-extension-critical {
+    margin-bottom: .3em;
+}
+
+/* lists in admin need some special styling */
+body.app-django_ca .django-ca-extension .django-ca-extension-value ul {
+    margin-left: 6px;
+}
+body.app-django_ca .django-ca-extension .django-ca-extension-value li {
+    list-style: initial;
+}
+
+/**
+ * serial numbers use a monospace font
+ */
+table#result_list td.field-serial_field,
+div.field-serial_field div.readonly,
+div.field-authority_key_identifier div.readonly p,
+body.app-django_ca .django-ca-serial,
+div.field-subject_key_identifier div.readonly
+{
+    font-family: mono;
+}
