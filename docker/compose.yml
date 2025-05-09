@@ -38,7 +38,7 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "7000:7000"
+      - "7000:80"
     networks:
       - django_ca
 
