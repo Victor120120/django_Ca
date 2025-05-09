@@ -9,8 +9,8 @@ services:
       - ca.ucr.ac.cr.crt
       - ca.ucr.ac.cr.key
     volumes:
-      - static_volume: /app/src/staticfiles
-      - ca_data: /shared/ca
+      - static_volume:/app/src/staticfiles
+      - ca_data:/shared/ca
     deploy:
       replicas: 3
       placement:
@@ -27,7 +27,7 @@ services:
       - source: nginx_conf
         target: /etc/nginx/conf.d/default.conf
     volumes:
-      - static_volume: /staticfiles:ro
+      - static_volume:/staticfiles:ro
     deploy:
       mode: global
       placement:
