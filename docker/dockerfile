@@ -22,6 +22,9 @@ RUN pip install -r requirements.txt
 # Copia el resto del código
 COPY . .
 
+# Crear staticos
+RUN python manage.py collectstatic --noinput
+
 # Expón el puerto (usualmente 8000 para Django)
 EXPOSE 7000
 
