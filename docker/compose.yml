@@ -1,21 +1,23 @@
 version: '3.8'
 
 services:
-  web:
-    image: django_ca_web:latest
-    working_dir: /app
+  web:                          # Django + Gunicorn
+    image: registro.db.core.ucr.ac.cr:9500/django_ca:latest
+    env_file:
+      - .env
+    secrets:
+      - ca.ucr.ac.cr.crt
+      - ca.ucr.ac.cr.key
     volumes:
-      - ../src:/app
       - static_volume:/app/staticfiles
       - ca_data:/shared/ca
     deploy:
       replicas: 3
+      placement:
+        constraints:
+          - node.labels.target == django_ca
       restart_policy:
         condition: on-failure
-    ports:
-      - "7000:7000"
-    env_file:
-      - .env
     depends_on:
       - db
     networks:
@@ -23,13 +25,20 @@ services:
 
   nginx:
     image: nginx:latest
-    ports:
-      - "${CONTAINER_PORT}:80"
     depends_on:
       - web
     volumes:
       - static_volume:/staticfiles
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.target == django_ca
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "7000:7000"
     networks:
       - django_ca
 
@@ -41,8 +50,20 @@ services:
       - POSTGRES_DB=django_ca
       - POSTGRES_USER=django_ca
       - POSTGRES_PASSWORD=123456
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
     networks:
       - django_ca
+
+secrets:
+  ca.ucr.ac.cr.crt:
+    external: true
+  ca.ucr.ac.cr.key:
+    external: true
 
 volumes:
   postgres_data:
