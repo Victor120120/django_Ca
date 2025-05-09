@@ -1,76 +1,37 @@
 version: '3.8'
 
-
 services:
-  web1:
-    build:
-      context: ../
-      dockerfile: docker/dockerfile
+  web:
+    image: django_ca_web:latest
     working_dir: /app
     volumes:
       - ../src:/app
       - static_volume:/app/staticfiles
       - ca_data:/shared/ca
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
     ports:
-      - "${HOST_PORT_WEB1}:${CONTAINER_PORT}"
+      - "7000:7000"
     env_file:
       - .env
-    environment:
-      - DJANGO_CA_URL_PATH=http://web2:${CONTAINER_PORT}/api/
-      - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1
     depends_on:
       - db
-  web2:
-    build:
-      context: ../
-      dockerfile: docker/dockerfile
-    working_dir: /app
-    volumes:
-      - ../src:/app
-      - static_volume:/app/staticfiles
-      - ca_data:/shared/ca
-    ports:
-      - "${HOST_PORT_WEB2}:${CONTAINER_PORT}"
-    env_file:
-      - .env
-    environment:
-      - DJANGO_CA_URL_PATH=http://web3:${CONTAINER_PORT}/api/
-      - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1,
-    depends_on:
-      - db
-
-  web3:
-    build:
-      context: ../
-      dockerfile: docker/dockerfile
-    working_dir: /app
-    volumes:
-      - ../src:/app
-      - static_volume:/app/staticfiles
-      - ca_data:/shared/ca
-    ports:
-      - "${HOST_PORT_WEB3}:${CONTAINER_PORT}"
-    env_file:
-      - .env
-    environment:
-      - DJANGO_CA_URL_PATH=http://web1:${CONTAINER_PORT}/api/
-      - DJANGO_CA_ALLOWED_HOSTS=web1,web2,web3,0.0.0.0,localhost,127.0.0.1
-    depends_on:
-      - db
-
+    networks:
+      - django_ca
 
   nginx:
     image: nginx:latest
     ports:
       - "${CONTAINER_PORT}:80"
     depends_on:
-      - web1
-      - web2
-      - web3
+      - web
     volumes:
       - static_volume:/staticfiles
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-
+    networks:
+      - django_ca
 
   db:
     image: postgres:15
@@ -80,8 +41,15 @@ services:
       - POSTGRES_DB=django_ca
       - POSTGRES_USER=django_ca
       - POSTGRES_PASSWORD=123456
+    networks:
+      - django_ca
 
 volumes:
   postgres_data:
   static_volume:
   ca_data:
+
+networks:
+  django_ca:
+    driver: overlay
+    attachable: true

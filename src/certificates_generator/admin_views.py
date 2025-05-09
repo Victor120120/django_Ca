@@ -50,10 +50,10 @@ class CertificateAdminMixin:
 
         response_data = self.sign_certificate(csr_pem, subject, self.utils.get_serial(save_model.certifying_authority),api_url,user,password)
         if response_data is None:
-            raise ValidationError("La solicitud HTTP para firmar el certificado falló. Intenta nuevamente.")
+            raise ValidationError(f"La solicitud {api_url} para firmar el certificado falló. Intenta nuevamente.")
         response_data = self.utils.get_certificate(response_data["slug"], self.utils.get_serial(save_model.certifying_authority), api_url, user, password)
         if response_data is None:
-            raise ValidationError("La solicitud HTTP para firmar el certificado falló. Intenta nuevamente.")
+            raise ValidationError(f"La solicitud {api_url} para firmar el certificado falló. Intenta nuevamente.")
         certificate_pem = response_data["pem"].encode()
 
         save_model.private_key = private_key.private_bytes(
