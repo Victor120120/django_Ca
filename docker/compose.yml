@@ -9,7 +9,7 @@ services:
       - ca.ucr.ac.cr.crt
       - ca.ucr.ac.cr.key
     volumes:
-      - static_volume:/staticfiles 
+      - static_volume: /app/src/staticfiles
       - ca_data:/shared/ca
     deploy:
       replicas: 3
